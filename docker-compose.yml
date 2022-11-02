@@ -1,13 +1,13 @@
 version: '3'
 services:
     php:
-        # image: 'php:7.2-fpm'
         build:
             context: ./docker
             dockerfile: php.Dockerfile
         container_name: ${APP_NAME:?err}-php
         volumes:
-            - './app:/var/www/html'
+            - './www:/var/www/html:rw'
+            - './config/php/php.ini:/usr/local/etc/php/php.ini:ro'
         depends_on:
             - mariadb
 
@@ -15,19 +15,40 @@ services:
         image: nginx:latest
         container_name: ${APP_NAME:?err}-nginx
         ports:
-            - '80:80'
-            - '443:443'
+            - '${PUBLIC_IP}:80:80'
+            - '${PUBLIC_IP}:443:443'
         links:
             - 'php'
+        restart: always
         volumes:
-            - './app:/var/www/html'
-            - './config/nginx:/etc/nginx/conf.d'
+            - './www:/var/www/html'
+            - './config/nginx:/etc/nginx/templates'
+            - ./config/certbot/www:/var/www/certbot/:ro
+            - ./config/certbot/conf/:/etc/nginx/ssl/:ro
+            - ./logs:/var/log
+        environment:
+           APP_NAME: ${APP_NAME}
+           NGINX_WWWHOST: ${NGINX_WWWHOST}
+           NGINX_HOST: ${NGINX_HOST}
+
+    certbot:
+        image: certbot/certbot:latest
+        container_name: ${APP_NAME:?err}-certbot
+        volumes:
+            - ./config/certbot/www/:/var/www/certbot/:rw
+            - ./config/certbot/conf/:/etc/letsencrypt/:rw
+        entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
 
     mariadb:
-        image: mariadb:10.3.9
+        image: mariadb:10.5
         container_name: ${APP_NAME:?err}-mariadb
         restart: 'on-failure'
         environment:
             MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?err}
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
         volumes:
-            - ${PWD}
+            - './db:/var/lib/mysql'

@@ -29,9 +29,17 @@ To use it, simply follow the following steps:
 
 Clone this repository with the following command: `git clone https://github.com/stevenliebregt/docker-compose-lemp-stack.git`.
 
+##### Edit .env file
+
+use properly .env to pass shit like pwds between config files and containers, so u dont type things 10 times
+
 ##### Start the server.
 
 Start the server using the following command inside the directory you just cloned: `docker-compose up`.
+
+##### Edit php.ini file
+
+Put php.ini out of container into config/ dir, so u can modify it
 
 ## Entering the containers
 
