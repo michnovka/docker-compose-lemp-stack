@@ -8,8 +8,12 @@ services:
         volumes:
             - './www:/var/www/html:rw'
             - './config/php/php.ini:/usr/local/etc/php/php.ini:ro'
+            - './config/php/crontab:/etc/crontab:ro'
+            - './logs/php-cron.log:/var/log/cron.log:rw'
         depends_on:
             - mariadb
+            - memcached
+            - elasticsearch
 
     nginx:
         image: nginx:latest
@@ -30,6 +34,8 @@ services:
            APP_NAME: ${APP_NAME}
            NGINX_WWWHOST: ${NGINX_WWWHOST}
            NGINX_HOST: ${NGINX_HOST}
+        depends_on:
+            - php
 
     certbot:
         image: certbot/certbot:latest
@@ -38,7 +44,8 @@ services:
             - ./config/certbot/www/:/var/www/certbot/:rw
             - ./config/certbot/conf/:/etc/letsencrypt/:rw
         entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-
+        depends_on:
+            - nginx
 
     mariadb:
         image: mariadb:10.5
@@ -52,3 +59,46 @@ services:
 
         volumes:
             - './db:/var/lib/mysql'
+
+
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:6.8.23
+        container_name: ${APP_NAME:?err}-elasticsearch
+        environment:
+            - node.name=es01
+            - cluster.name=ac-docker-cluster
+            - discovery.type=single-node
+            - bootstrap.memory_lock=true
+            - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ulimits:
+            memlock:
+                soft: -1
+                hard: -1
+        volumes:
+            - elasticsearch-data01:/usr/share/elasticsearch/data
+        expose:
+            - 9200
+
+    elasticsearch_exporter:
+        image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
+        container_name: ${APP_NAME:?err}-elasticsearch-exporter
+        restart: always
+        command:
+            - '--es.uri=http://${APP_NAME:?err}-elasticsearch:9200'
+        ports:
+            - "10.1.0.21:9115:9114"
+        depends_on:
+            - elasticsearch
+
+    memcached:
+        container_name: ${APP_NAME:?err}-memcached
+        image: memcached:latest
+        expose:
+            - 11211
+
+volumes:
+   elasticsearch-data01:
+        driver: local
+
+
+
